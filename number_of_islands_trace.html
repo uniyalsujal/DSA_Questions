@@ -1,0 +1,109 @@
+<div style="font-family: -apple-system, Arial, sans-serif; display:flex; flex-direction:column; align-items:center; gap:16px; padding:20px; background:#fafafa; border:1px solid #ddd; border-radius:12px; max-width:600px; margin:0 auto;">
+
+  <h3 style="margin:0; font-size:16px; font-weight:600; color:#222; text-align:center;">numIslands DFS trace — grid=[[1,1,0,0,0],[1,1,0,1,0],[0,0,0,1,1],[0,0,0,0,0],[1,0,1,1,0]]</h3>
+
+  <div style="font-size:14px; font-weight:600; color:#0C447C;" id="island-count"></div>
+
+  <div id="grid" style="display:grid; grid-template-columns:repeat(5,52px); grid-template-rows:repeat(5,52px); gap:5px;"></div>
+
+  <div style="display:flex; gap:14px; font-size:12px; color:#555; flex-wrap:wrap; justify-content:center;">
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#D3D1C7;margin-right:4px;"></span>0 (water, or land already visited)</span>
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#B5D4F4;margin-right:4px;"></span>1 (unvisited land)</span>
+  </div>
+
+  <div style="width:100%; background:#fff; border:1px solid #e0e0e0; border-radius:10px; padding:14px 18px; box-sizing:border-box;">
+    <div style="font-family:'Courier New',monospace; font-size:13px; margin-bottom:6px; color:#111;" id="call-line"></div>
+    <div style="font-size:14px; color:#555;" id="desc-line"></div>
+  </div>
+
+  <div style="display:flex; align-items:center; gap:12px;">
+    <button id="prev" style="padding:6px 16px; border-radius:6px; border:1px solid #ccc; background:#fff; cursor:pointer; font-size:13px;">Prev</button>
+    <span style="font-size:13px; color:#555; min-width:80px; text-align:center;" id="counter"></span>
+    <button id="next" style="padding:6px 16px; border-radius:6px; border:1px solid #ccc; background:#fff; cursor:pointer; font-size:13px;">Next</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---- Run the actual algorithm, recording every dfs call as a step ----
+  const original = [[1,1,0,0,0],[1,1,0,1,0],[0,0,0,1,1],[0,0,0,0,0],[1,0,1,1,0]];
+  const rows = original.length, cols = original[0].length;
+  let visGrid = original.map(r => r.slice()); // 0 = water OR already-visited land, 1 = unvisited land
+  let wasLand = original.map(r => r.slice());  // untouched copy, only used to build description text
+  let steps = [];
+  let count = 0;
+
+  function snapshot(){ return visGrid.map(r => r.slice()); }
+
+  function dfs(row, col, depth){
+    if (row < 0 || row >= rows || col < 0 || col >= cols){
+      steps.push({row, col, depth, action:'oob', desc:'out of bounds -> return', grid:snapshot(), count});
+      return;
+    }
+    if (visGrid[row][col] !== 1){
+      const reason = wasLand[row][col] === 0 ? 'is water (0)' : 'was land but is already visited (now 0)';
+      steps.push({row, col, depth, action:'skip', desc:'grid['+row+']['+col+'] '+reason+' -> return', grid:snapshot(), count});
+      return;
+    }
+    visGrid[row][col] = 0;
+    steps.push({row, col, depth, action:'set', desc:'grid['+row+']['+col+'] == 1 (land) -> set to 0 (mark visited)', grid:snapshot(), count});
+    dfs(row-1, col, depth+1); // up
+    dfs(row+1, col, depth+1); // down
+    dfs(row, col-1, depth+1); // left
+    dfs(row, col+1, depth+1); // right
+  }
+
+  for (let r = 0; r < rows; r++){
+    for (let c = 0; c < cols; c++){
+      if (visGrid[r][c] === 1){
+        count++;
+        steps.push({row:r, col:c, depth:0, action:'newIsland', desc:'New unvisited land found at ('+r+','+c+') -> island count becomes '+count, grid:snapshot(), count});
+        dfs(r, c, 0);
+      }
+    }
+  }
+  steps.push({row:-1, col:-1, depth:0, action:'done', desc:'Scan complete. Total islands = '+count, grid:snapshot(), count});
+
+  // ---- Render ----
+  let i = 0;
+  const colorBg = {0:'#D3D1C7', 1:'#B5D4F4'};
+  const colorText = {0:'#444441', 1:'#0C447C'};
+
+  function render(){
+    const s = steps[i];
+    const gridEl = document.getElementById('grid');
+    gridEl.innerHTML = '';
+    for (let r = 0; r < rows; r++){
+      for (let c = 0; c < cols; c++){
+        const v = s.grid[r][c];
+        const cell = document.createElement('div');
+        const isCurrent = (r === s.row && c === s.col);
+        let ring = '0 0 0 1px #ccc';
+        if (isCurrent){
+          ring = s.action === 'newIsland' ? '0 0 0 3px #E08A3C' : '0 0 0 3px #E24B4A';
+        }
+        cell.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;border-radius:8px;background:'+colorBg[v]+';color:'+colorText[v]+';box-shadow:'+ring+';';
+        cell.textContent = v;
+        gridEl.appendChild(cell);
+      }
+    }
+    const indent = '\u00A0\u00A0'.repeat(s.depth);
+    if (s.action === 'newIsland'){
+      document.getElementById('call-line').textContent = 'main loop: found land at (' + s.row + ',' + s.col + ')';
+    } else if (s.action === 'done'){
+      document.getElementById('call-line').textContent = 'scan finished';
+    } else {
+      document.getElementById('call-line').textContent = indent + 'dfs(row=' + s.row + ', col=' + s.col + ')';
+    }
+    document.getElementById('desc-line').textContent = s.desc;
+    document.getElementById('island-count').textContent = 'Islands found so far: ' + s.count;
+    document.getElementById('counter').textContent = (i+1) + ' / ' + steps.length;
+    document.getElementById('prev').disabled = i === 0;
+    document.getElementById('next').disabled = i === steps.length - 1;
+  }
+
+  document.getElementById('prev').onclick = () => { if (i > 0){ i--; render(); } };
+  document.getElementById('next').onclick = () => { if (i < steps.length - 1){ i++; render(); } };
+  render();
+})();
+</script>
