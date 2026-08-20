@@ -1,0 +1,130 @@
+<div style="font-family: -apple-system, Arial, sans-serif; display:flex; flex-direction:column; align-items:center; gap:14px; padding:20px; background:#fafafa; border:1px solid #ddd; border-radius:12px; max-width:640px; margin:0 auto;">
+
+  <h3 style="margin:0; font-size:15px; font-weight:600; color:#222; text-align:center;">maxAreaOfIsland DFS trace — 8x13 grid</h3>
+
+  <div style="display:flex; gap:20px; font-size:14px; font-weight:600;">
+    <span style="color:#0C447C;" id="current-area"></span>
+    <span style="color:#8A4B0C;" id="max-area"></span>
+  </div>
+
+  <div id="grid" style="display:grid; grid-template-columns:repeat(13,34px); grid-template-rows:repeat(8,34px); gap:3px;"></div>
+
+  <div style="display:flex; gap:14px; font-size:12px; color:#555; flex-wrap:wrap; justify-content:center;">
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#D3D1C7;margin-right:4px;"></span>0 (water, or land already visited)</span>
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#B5D4F4;margin-right:4px;"></span>1 (unvisited land)</span>
+  </div>
+
+  <div style="width:100%; background:#fff; border:1px solid #e0e0e0; border-radius:10px; padding:14px 18px; box-sizing:border-box;">
+    <div style="font-family:'Courier New',monospace; font-size:13px; margin-bottom:6px; color:#111;" id="call-line"></div>
+    <div style="font-size:14px; color:#555;" id="desc-line"></div>
+  </div>
+
+  <div style="display:flex; align-items:center; gap:12px;">
+    <button id="prev" style="padding:6px 16px; border-radius:6px; border:1px solid #ccc; background:#fff; cursor:pointer; font-size:13px;">Prev</button>
+    <span style="font-size:13px; color:#555; min-width:80px; text-align:center;" id="counter"></span>
+    <button id="next" style="padding:6px 16px; border-radius:6px; border:1px solid #ccc; background:#fff; cursor:pointer; font-size:13px;">Next</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---- Run the actual algorithm, recording every dfs call as a step ----
+  const original = [
+    [0,0,1,0,0,0,0,1,0,0,0,0,0],
+    [0,0,0,0,0,0,0,1,1,1,0,0,0],
+    [0,1,1,0,1,0,0,0,0,0,0,0,0],
+    [0,1,0,0,1,1,0,0,1,0,1,0,0],
+    [0,1,0,0,1,1,0,0,1,1,1,0,0],
+    [0,0,0,0,0,0,0,0,0,0,1,0,0],
+    [0,0,0,0,0,0,0,1,1,1,0,0,0],
+    [0,0,0,0,0,0,0,1,1,0,0,0,0]
+  ];
+  const rows = original.length, cols = original[0].length;
+  let visGrid = original.map(r => r.slice()); // 0 = water OR already-visited land, 1 = unvisited land
+  const wasLand = original.map(r => r.slice()); // untouched copy, only used to build description text
+  let steps = [];
+  let maxArea = 0;
+  let currentArea = 0;
+
+  function snapshot(){ return visGrid.map(r => r.slice()); }
+
+  function dfs(row, col, depth){
+    if (row < 0 || row >= rows || col < 0 || col >= cols){
+      steps.push({row, col, depth, action:'oob', desc:'out of bounds -> return 0', grid:snapshot(), currentArea, maxArea});
+      return 0;
+    }
+    if (visGrid[row][col] !== 1){
+      const reason = wasLand[row][col] === 0 ? 'is water (0)' : 'was land but is already visited (now 0)';
+      steps.push({row, col, depth, action:'skip', desc:'grid['+row+']['+col+'] '+reason+' -> return 0', grid:snapshot(), currentArea, maxArea});
+      return 0;
+    }
+    visGrid[row][col] = 0;
+    currentArea++;
+    steps.push({row, col, depth, action:'set', desc:'grid['+row+']['+col+'] == 1 -> set to 0, count this cell (running area = '+currentArea+')', grid:snapshot(), currentArea, maxArea});
+    let area = 1;
+    area += dfs(row-1, col, depth+1); // up
+    area += dfs(row+1, col, depth+1); // down
+    area += dfs(row, col-1, depth+1); // left
+    area += dfs(row, col+1, depth+1); // right
+    return area;
+  }
+
+  for (let r = 0; r < rows; r++){
+    for (let c = 0; c < cols; c++){
+      if (visGrid[r][c] === 1){
+        currentArea = 0;
+        steps.push({row:r, col:c, depth:0, action:'newIsland', desc:'New unvisited land found at ('+r+','+c+') -> start dfs, area resets to 0', grid:snapshot(), currentArea, maxArea});
+        const area = dfs(r, c, 0);
+        maxArea = Math.max(maxArea, area);
+        steps.push({row:-1, col:-1, depth:0, action:'islandDone', desc:'Island finished. area('+r+','+c+') = '+area+'  ->  maxArea = max('+maxArea+', '+area+') = '+maxArea, grid:snapshot(), currentArea:area, maxArea});
+      }
+    }
+  }
+  steps.push({row:-1, col:-1, depth:0, action:'done', desc:'Scan complete. Max area of island = '+maxArea, grid:snapshot(), currentArea, maxArea});
+
+  // ---- Render ----
+  let i = 0;
+  const colorBg = {0:'#D3D1C7', 1:'#B5D4F4'};
+  const colorText = {0:'#444441', 1:'#0C447C'};
+
+  function render(){
+    const s = steps[i];
+    const gridEl = document.getElementById('grid');
+    gridEl.innerHTML = '';
+    for (let r = 0; r < rows; r++){
+      for (let c = 0; c < cols; c++){
+        const v = s.grid[r][c];
+        const cell = document.createElement('div');
+        const isCurrent = (r === s.row && c === s.col);
+        let ring = '0 0 0 1px #ccc';
+        if (isCurrent){
+          ring = s.action === 'newIsland' ? '0 0 0 2px #E08A3C' : '0 0 0 2px #E24B4A';
+        }
+        cell.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;border-radius:5px;background:'+colorBg[v]+';color:'+colorText[v]+';box-shadow:'+ring+';';
+        cell.textContent = v;
+        gridEl.appendChild(cell);
+      }
+    }
+    const indent = '\u00A0\u00A0'.repeat(s.depth);
+    if (s.action === 'newIsland'){
+      document.getElementById('call-line').textContent = 'main loop: found land at (' + s.row + ',' + s.col + ')';
+    } else if (s.action === 'islandDone'){
+      document.getElementById('call-line').textContent = 'island exploration finished';
+    } else if (s.action === 'done'){
+      document.getElementById('call-line').textContent = 'scan finished';
+    } else {
+      document.getElementById('call-line').textContent = indent + 'dfs(row=' + s.row + ', col=' + s.col + ')';
+    }
+    document.getElementById('desc-line').textContent = s.desc;
+    document.getElementById('current-area').textContent = 'Current island area: ' + s.currentArea;
+    document.getElementById('max-area').textContent = 'Max area so far: ' + s.maxArea;
+    document.getElementById('counter').textContent = (i+1) + ' / ' + steps.length;
+    document.getElementById('prev').disabled = i === 0;
+    document.getElementById('next').disabled = i === steps.length - 1;
+  }
+
+  document.getElementById('prev').onclick = () => { if (i > 0){ i--; render(); } };
+  document.getElementById('next').onclick = () => { if (i < steps.length - 1){ i++; render(); } };
+  render();
+})();
+</script>
